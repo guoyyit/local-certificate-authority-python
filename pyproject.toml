@@ -3,9 +3,19 @@ name = "local-certificate-authority-python"
 version = "0.1.0"
 requires-python = ">=3.14.4"
 dependencies = [
+    "cryptography>=50.0.1",
     "fastapi[standard]>=0.141.1",
 ]
 
 [[tool.uv.index]]
 url = "https://mirrors.aliyun.com/pypi/simple/"
 default = true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
