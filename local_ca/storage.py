@@ -258,14 +258,21 @@ class Storage:
         authz_id: str,
         from_statuses: tuple[AuthorizationStatus, ...],
         to_status: AuthorizationStatus,
+        expires_at: float | None = None,
     ) -> bool:
         """Atomically move an authorization between states. Returns success."""
         with self._lock, self._conn:
             marks = ",".join("?" for _ in from_statuses)
             cur = self._conn.execute(
-                f"UPDATE authorizations SET status = ?"
+                f"UPDATE authorizations SET status = ?,"
+                f" expires_at = COALESCE(?, expires_at)"
                 f" WHERE authz_id = ? AND status IN ({marks})",
-                (to_status.value, authz_id, *[s.value for s in from_statuses]),
+                (
+                    to_status.value,
+                    expires_at,
+                    authz_id,
+                    *[s.value for s in from_statuses],
+                ),
             )
             return cur.rowcount == 1
 
@@ -331,6 +338,21 @@ class Storage:
                 (
                     ChallengeStatus.EXPIRED.value,
                     ChallengeStatus.PENDING.value,
+                    now,
+                ),
+            )
+            return cur.rowcount
+
+    def expire_authorizations(self, now: float) -> int:
+        """Mark every overdue pending/valid authorization as expired."""
+        with self._lock, self._conn:
+            cur = self._conn.execute(
+                "UPDATE authorizations SET status = ?"
+                " WHERE status IN (?, ?) AND expires_at <= ?",
+                (
+                    AuthorizationStatus.EXPIRED.value,
+                    AuthorizationStatus.PENDING.value,
+                    AuthorizationStatus.VALID.value,
                     now,
                 ),
             )
